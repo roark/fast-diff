@@ -38,17 +38,17 @@ var DIFF_EQUAL = 0;
 
 /**
  * Entry point for finding difference between two texts.
- * Converts given text strings to arrays of code points,
+ * Converts given text strings to arrays of string symbols,
  * then converts resulting diffs back to strings.
  * @param {string} text1 Old string to be diffed.
  * @param {string} text2 New string to be diffed.
  * @returns {Array} Array of diff tubles. Diffs contain strings.
  */
 function diff_start(text1, text2) {
-  var text1CodePoints = stringToCodePoints(text1);
-  var text2CodePoints = stringToCodePoints(text2);
+  var text1Syms = stringToSymbolsArray(text1);
+  var text2Syms = stringToSymbolsArray(text2);
 
-  var diffs = diff_main(text1CodePoints,text2CodePoints);
+  var diffs = diff_main(text1Syms,text2Syms);
 
   // Convert diffs to strings
   diff_convertToStrings(diffs);
@@ -57,11 +57,11 @@ function diff_start(text1, text2) {
 }
 
 /**
- * Find the differences between two code point arrays.  Simplifies the problem by stripping
+ * Find the differences between two symbols arrays.  Simplifies the problem by stripping
  * any common prefix or suffix off the texts before diffing.
- * @param {Array.<string>} text1 Old array of code points to be diffed.
- * @param {Array.<string>} text2 New array of code points to be diffed.
- * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
+ * @param {Array.<string>} text1 Old array of symbols to be diffed.
+ * @param {Array.<string>} text2 New array of symbols to be diffed.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of symbols.
  */
 function diff_main(text1, text2) {
   // Check for equality (speedup).
@@ -101,11 +101,11 @@ function diff_main(text1, text2) {
 
 
 /**
- * Find the differences between two arrays of code points.
+ * Find the differences between two arrays of symbols.
  * Assumes that the texts do not have any common prefix or suffix.
- * @param {Array.<string>} text1 Old array of code points to be diffed.
- * @param {Array.<string>} text2 New array of code points to be diffed.
- * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
+ * @param {Array.<string>} text1 Old array of symbols to be diffed.
+ * @param {Array.<string>} text2 New array of symbols to be diffed.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of symbols.
  */
 function diff_compute_(text1, text2) {
   var diffs;
@@ -166,9 +166,9 @@ function diff_compute_(text1, text2) {
  * Find the 'middle snake' of a diff, split the problem in two
  * and return the recursively constructed diff.
  * See Myers 1986 paper: An O(ND) Difference Algorithm and Its Variations.
- * @param {Array.<string>} text1 Old array of code points to be diffed.
- * @param {Array.<string>} text2 New array of code points to be diffed.
- * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
+ * @param {Array.<string>} text1 Old array of symbols to be diffed.
+ * @param {Array.<string>} text2 New array of symbols to be diffed.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of symbols.
  * @private
  */
 function diff_bisect_(text1, text2) {
@@ -281,11 +281,11 @@ function diff_bisect_(text1, text2) {
 /**
  * Given the location of the 'middle snake', split the diff in two parts
  * and recurse.
- * @param {Array.<string>} text1 Old array of code points to be diffed.
- * @param {Array.<string>} text2 New array of code points to be diffed.
+ * @param {Array.<string>} text1 Old array of symbols to be diffed.
+ * @param {Array.<string>} text2 New array of symbols to be diffed.
  * @param {number} x Index of split point in text1.
  * @param {number} y Index of split point in text2.
- * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of symbols.
  */
 function diff_bisectSplit_(text1, text2, x, y) {
   var text1a = text1.slice(0, x);
@@ -302,10 +302,10 @@ function diff_bisectSplit_(text1, text2, x, y) {
 
 
 /**
- * Determine the common prefix of two arrays of code points.
- * @param {Array.<string>} text1 First array of code points.
- * @param {Array.<string>} text2 Second array of code points.
- * @return {number} The number of code points common to the start of each
+ * Determine the common prefix of two arrays of symbols.
+ * @param {Array.<string>} text1 First array of symbols.
+ * @param {Array.<string>} text2 Second array of symbols.
+ * @return {number} The number of symbols common to the start of each
  *     array.
  */
 function diff_commonPrefix(text1, text2) {
@@ -334,10 +334,10 @@ function diff_commonPrefix(text1, text2) {
 
 
 /**
- * Determine the common suffix of two arrays of code points.
- * @param {Array.<string>} text1 First array of code points.
- * @param {Array.<string>} text2 Second array of code points.
- * @return {number} The number of code points common to the end of each array.
+ * Determine the common suffix of two arrays of symbols.
+ * @param {Array.<string>} text1 First array of symbols.
+ * @param {Array.<string>} text2 Second array of symbols.
+ * @return {number} The number of symbols common to the end of each array.
  */
 function diff_commonSuffix(text1, text2) {
   // Quick check for common null cases.
@@ -369,8 +369,8 @@ function diff_commonSuffix(text1, text2) {
  * Do the two texts share a substring which is at least half the length of the
  * longer text?
  * This speedup can produce non-minimal diffs.
- * @param {Array.<string>} text1 First array of code points.
- * @param {Array.<string>} text2 Second array of code points.
+ * @param {Array.<string>} text1 First array of symbols.
+ * @param {Array.<string>} text2 Second array of symbols.
  * @return {Array.<Array>.<string>} Five element Array, containing the prefix of
  *     text1, the suffix of text1, the prefix of text2, the suffix of
  *     text2 and the common middle.  Or null if there was no match.
@@ -386,8 +386,8 @@ function diff_halfMatch_(text1, text2) {
    * Does a substring of shorttext exist within longtext such that the substring
    * is at least half the length of longtext?
    * Closure, but does not reference any external variables.
-   * @param {Array.<string>} longtext Longer code point array.
-   * @param {Array.<string>} shorttext Shorter code point array.
+   * @param {Array.<string>} longtext Longer symbols array.
+   * @param {Array.<string>} shorttext Shorter symbols array.
    * @param {number} i Start index of quarter length substring within longtext.
    * @return {Array.<Array>.<string>} Five element Array, containing the prefix of
    *     longtext, the suffix of longtext, the prefix of shorttext, the suffix
@@ -461,7 +461,7 @@ function diff_halfMatch_(text1, text2) {
 /**
  * Reorder and merge like edit sections.  Merge equalities.
  * Any edit section can move as long as it doesn't cross an equality.
- * @param {Array} diffs Array of diff tuples. Diffs contain arrays of code points.
+ * @param {Array} diffs Array of diff tuples. Diffs contain arrays of symbols.
  */
 function diff_cleanupMerge(diffs) {
   diffs.push([DIFF_EQUAL, [] ]);  // Add a dummy entry at the end.
@@ -587,23 +587,23 @@ function diff_cleanupMerge(diffs) {
 
 
 /**
- * Converts diffs array contents from arrays of code points to strings.
- * @param {Array} diffs Array of diff tuples. Diffs should contain arrays of code points.
+ * Converts diffs array contents from arrays of symbols to strings.
+ * @param {Array} diffs Array of diff tuples. Diffs should contain arrays of symbols.
  */
 function diff_convertToStrings(diffs) {
   var diffsLen = diffs.length;
   for (var i = 0; i < diffsLen; i++) {
-    diffs[i][1] = codePointsToString( diffs[i][1] );
+    diffs[i][1] = symbolsArrayToString( diffs[i][1] );
   }
 }
 
 
 /**
- * Converts a string to an array of code points.
- * @param {string} string String to be converted to code points.
- * @returns {Array.<string>} Array of code points that make up string.
+ * Converts a string to an array of symbols.
+ * @param {string} string String to be converted to symbols.
+ * @returns {Array.<string>} Array of symbols that make up string.
  */
-function stringToCodePoints(string) {
+function stringToSymbolsArray(string) {
   var index = 0;
   var length = string.length;
   var output = [];
@@ -627,12 +627,12 @@ function stringToCodePoints(string) {
 
 
 /**
- * Converts an array of code points to a string.
- * @param {Array.<string>} codePoints Array of code points.
- * @returns {string} String built from given code points.
+ * Converts an array of symbols to a string.
+ * @param {Array.<string>} symbols Array of symbols.
+ * @returns {string} String built from given symbols.
  */
-function codePointsToString(codePoints) {
-  return codePoints.join('');
+function symbolsArrayToString(symbols) {
+  return symbols.join('');
 }
 
 
