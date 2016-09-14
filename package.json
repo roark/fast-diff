@@ -1,24 +1,31 @@
 {
-  "name": "fast-diff",
-  "version": "1.0.1",
-  "description": "Fast Javascript text diff",
-  "author": "Jason Chen <jhchen7@gmail.com>",
+  "name": "fast-diff-astral",
+  "version": "1.0.2",
+  "description": "Fast Javascript text diff, takes into account unicode astral plane.",
+  "author": "Roark <roarkgh@protonmail.com>",
   "main": "diff.js",
   "devDependencies": {
+    "chai": "3.5.0",
     "googlediff": "~0.1.0",
-    "lodash": "~3.9.3",
+    "mocha": "3.0.2",
     "seedrandom": "~2.4.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jhchen/fast-diff"
+    "url": "https://github.com/roark/fast-diff-astral"
   },
   "bugs": {
-    "url": "https://github.com/jhchen/fast-diff/issues"
+    "url": "https://github.com/roark/fast-diff-astral/issues"
   },
   "scripts": {
-    "test": "node test.js"
+    "test-sanity": "node tests/sanity.js",
+    "test-astral": "mocha tests/astral.js"
   },
   "license": "Apache 2.0",
-  "keywords": ["diff"]
+  "keywords": [
+    "diff"
+  ],
+  "dependencies": {
+    "lodash.isequal": "4.4.0"
+  }
 }

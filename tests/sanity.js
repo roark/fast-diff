@@ -1,7 +1,15 @@
-var _ = require('lodash');
+/**
+ * This sanity test compares fast-diff-astral to googlediff.
+ * However, it cannot test surrogate pairs, as googlediff does
+ * not handle them correctly itself.
+ *
+ * Therefore it is used purely to check the sanity of diffing with
+ * regard to text in the basic multilingual plane.
+ */
+var isEqual = require('lodash.isequal');
 var googlediff = require('googlediff');
 var seedrandom = require('seedrandom');
-var diff = require('./diff.js');
+var diff = require('../diff.js');
 
 googlediff = new googlediff();
 
@@ -27,9 +35,15 @@ for(var i = 0; i <= ITERATIONS; ++i) {
 
 console.log('Running tests...');
 for(var i = 0; i < ITERATIONS; ++i) {
+  // console.log('\nIteration: ', i);
+  // console.log('Diff String A: ', strings[i]);
+  // console.log('Diff String B: ', strings[i+1]);
   var result = diff(strings[i], strings[i+1]);
   var expected = googlediff.diff_main(strings[i], strings[i+1]);
-  if (!_.isEqual(result, expected)) {
+  // console.log('Diff Result: ', result);
+  // console.log('Diff Expected: ', expected);
+
+  if (!isEqual(result, expected)) {
     console.log('Expected', expected);
     console.log('Result', result);
     throw new Error('Diff produced difference results.');

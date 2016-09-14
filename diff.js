@@ -23,6 +23,8 @@
  * limitations under the License.
  */
 
+// load dependencies
+var isEqual = require('lodash.isequal');
 
 /**
  * The data structure representing a diff is an array of tuples:
@@ -35,16 +37,36 @@ var DIFF_EQUAL = 0;
 
 
 /**
- * Find the differences between two texts.  Simplifies the problem by stripping
- * any common prefix or suffix off the texts before diffing.
+ * Entry point for finding difference between two texts.
+ * Converts given text strings to arrays of code points,
+ * then converts resulting diffs back to strings.
  * @param {string} text1 Old string to be diffed.
  * @param {string} text2 New string to be diffed.
- * @return {Array} Array of diff tuples.
+ * @returns {Array} Array of diff tubles. Diffs contain strings.
+ */
+function diff_start(text1, text2) {
+  var text1CodePoints = stringToCodePoints(text1);
+  var text2CodePoints = stringToCodePoints(text2);
+
+  var diffs = diff_main(text1CodePoints,text2CodePoints);
+
+  // Convert diffs to strings
+  diff_convertToStrings(diffs);
+
+  return diffs;
+}
+
+/**
+ * Find the differences between two code point arrays.  Simplifies the problem by stripping
+ * any common prefix or suffix off the texts before diffing.
+ * @param {Array.<string>} text1 Old array of code points to be diffed.
+ * @param {Array.<string>} text2 New array of code points to be diffed.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
  */
 function diff_main(text1, text2) {
   // Check for equality (speedup).
-  if (text1 == text2) {
-    if (text1) {
+  if ( isEqual(text1, text2) ) {
+    if ( text1.length > 0 ) {
       return [[DIFF_EQUAL, text1]];
     }
     return [];
@@ -52,59 +74,61 @@ function diff_main(text1, text2) {
 
   // Trim off common prefix (speedup).
   var commonlength = diff_commonPrefix(text1, text2);
-  var commonprefix = text1.substring(0, commonlength);
-  text1 = text1.substring(commonlength);
-  text2 = text2.substring(commonlength);
+  var commonprefix = text1.slice(0, commonlength);
+  text1 = text1.slice(commonlength);
+  text2 = text2.slice(commonlength);
 
   // Trim off common suffix (speedup).
   commonlength = diff_commonSuffix(text1, text2);
-  var commonsuffix = text1.substring(text1.length - commonlength);
-  text1 = text1.substring(0, text1.length - commonlength);
-  text2 = text2.substring(0, text2.length - commonlength);
+  var commonsuffix = text1.slice(text1.length - commonlength);
+  text1 = text1.slice(0, text1.length - commonlength);
+  text2 = text2.slice(0, text2.length - commonlength);
 
   // Compute the diff on the middle block.
   var diffs = diff_compute_(text1, text2);
 
   // Restore the prefix and suffix.
-  if (commonprefix) {
+  if (commonprefix.length > 0) {
     diffs.unshift([DIFF_EQUAL, commonprefix]);
   }
-  if (commonsuffix) {
+  if (commonsuffix.length > 0) {
     diffs.push([DIFF_EQUAL, commonsuffix]);
   }
   diff_cleanupMerge(diffs);
+
   return diffs;
 };
 
 
 /**
- * Find the differences between two texts.  Assumes that the texts do not
- * have any common prefix or suffix.
- * @param {string} text1 Old string to be diffed.
- * @param {string} text2 New string to be diffed.
- * @return {Array} Array of diff tuples.
+ * Find the differences between two arrays of code points.
+ * Assumes that the texts do not have any common prefix or suffix.
+ * @param {Array.<string>} text1 Old array of code points to be diffed.
+ * @param {Array.<string>} text2 New array of code points to be diffed.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
  */
 function diff_compute_(text1, text2) {
   var diffs;
 
-  if (!text1) {
+  if ( text1.length === 0 ) {
     // Just add some text (speedup).
     return [[DIFF_INSERT, text2]];
   }
 
-  if (!text2) {
+  if ( text2.length === 0 ) {
     // Just delete some text (speedup).
     return [[DIFF_DELETE, text1]];
   }
 
   var longtext = text1.length > text2.length ? text1 : text2;
   var shorttext = text1.length > text2.length ? text2 : text1;
-  var i = longtext.indexOf(shorttext);
+
+  var i = subArrayIndexOf(longtext, shorttext);
   if (i != -1) {
     // Shorter text is inside the longer text (speedup).
-    diffs = [[DIFF_INSERT, longtext.substring(0, i)],
+    diffs = [[DIFF_INSERT, longtext.slice(0, i)],
              [DIFF_EQUAL, shorttext],
-             [DIFF_INSERT, longtext.substring(i + shorttext.length)]];
+             [DIFF_INSERT, longtext.slice(i + shorttext.length)]];
     // Swap insertions for deletions if diff is reversed.
     if (text1.length > text2.length) {
       diffs[0][0] = diffs[2][0] = DIFF_DELETE;
@@ -142,9 +166,9 @@ function diff_compute_(text1, text2) {
  * Find the 'middle snake' of a diff, split the problem in two
  * and return the recursively constructed diff.
  * See Myers 1986 paper: An O(ND) Difference Algorithm and Its Variations.
- * @param {string} text1 Old string to be diffed.
- * @param {string} text2 New string to be diffed.
- * @return {Array} Array of diff tuples.
+ * @param {Array.<string>} text1 Old array of code points to be diffed.
+ * @param {Array.<string>} text2 New array of code points to be diffed.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
  * @private
  */
 function diff_bisect_(text1, text2) {
@@ -186,7 +210,7 @@ function diff_bisect_(text1, text2) {
       }
       var y1 = x1 - k1;
       while (x1 < text1_length && y1 < text2_length &&
-             text1.charAt(x1) == text2.charAt(y1)) {
+             text1[x1] == text2[y1]) {
         x1++;
         y1++;
       }
@@ -221,8 +245,8 @@ function diff_bisect_(text1, text2) {
       }
       var y2 = x2 - k2;
       while (x2 < text1_length && y2 < text2_length &&
-             text1.charAt(text1_length - x2 - 1) ==
-             text2.charAt(text2_length - y2 - 1)) {
+             text1[text1_length - x2 - 1] ==
+             text2[text2_length - y2 - 1]) {
         x2++;
         y2++;
       }
@@ -257,17 +281,17 @@ function diff_bisect_(text1, text2) {
 /**
  * Given the location of the 'middle snake', split the diff in two parts
  * and recurse.
- * @param {string} text1 Old string to be diffed.
- * @param {string} text2 New string to be diffed.
+ * @param {Array.<string>} text1 Old array of code points to be diffed.
+ * @param {Array.<string>} text2 New array of code points to be diffed.
  * @param {number} x Index of split point in text1.
  * @param {number} y Index of split point in text2.
- * @return {Array} Array of diff tuples.
+ * @return {Array} Array of diff tuples. Diffs contain arrays of code points.
  */
 function diff_bisectSplit_(text1, text2, x, y) {
-  var text1a = text1.substring(0, x);
-  var text2a = text2.substring(0, y);
-  var text1b = text1.substring(x);
-  var text2b = text2.substring(y);
+  var text1a = text1.slice(0, x);
+  var text2a = text2.slice(0, y);
+  var text1b = text1.slice(x);
+  var text2b = text2.slice(y);
 
   // Compute both diffs serially.
   var diffs = diff_main(text1a, text2a);
@@ -278,15 +302,15 @@ function diff_bisectSplit_(text1, text2, x, y) {
 
 
 /**
- * Determine the common prefix of two strings.
- * @param {string} text1 First string.
- * @param {string} text2 Second string.
- * @return {number} The number of characters common to the start of each
- *     string.
+ * Determine the common prefix of two arrays of code points.
+ * @param {Array.<string>} text1 First array of code points.
+ * @param {Array.<string>} text2 Second array of code points.
+ * @return {number} The number of code points common to the start of each
+ *     array.
  */
 function diff_commonPrefix(text1, text2) {
   // Quick check for common null cases.
-  if (!text1 || !text2 || text1.charAt(0) != text2.charAt(0)) {
+  if (!text1 || !text2 || text1[0] != text2[0]) {
     return 0;
   }
   // Binary search.
@@ -296,8 +320,8 @@ function diff_commonPrefix(text1, text2) {
   var pointermid = pointermax;
   var pointerstart = 0;
   while (pointermin < pointermid) {
-    if (text1.substring(pointerstart, pointermid) ==
-        text2.substring(pointerstart, pointermid)) {
+    if ( isEqual( text1.slice(pointerstart, pointermid),
+         text2.slice(pointerstart, pointermid) ) ) {
       pointermin = pointermid;
       pointerstart = pointermin;
     } else {
@@ -310,15 +334,15 @@ function diff_commonPrefix(text1, text2) {
 
 
 /**
- * Determine the common suffix of two strings.
- * @param {string} text1 First string.
- * @param {string} text2 Second string.
- * @return {number} The number of characters common to the end of each string.
+ * Determine the common suffix of two arrays of code points.
+ * @param {Array.<string>} text1 First array of code points.
+ * @param {Array.<string>} text2 Second array of code points.
+ * @return {number} The number of code points common to the end of each array.
  */
 function diff_commonSuffix(text1, text2) {
   // Quick check for common null cases.
   if (!text1 || !text2 ||
-      text1.charAt(text1.length - 1) != text2.charAt(text2.length - 1)) {
+      text1[text1.length - 1] != text2[text2.length - 1]) {
     return 0;
   }
   // Binary search.
@@ -328,8 +352,8 @@ function diff_commonSuffix(text1, text2) {
   var pointermid = pointermax;
   var pointerend = 0;
   while (pointermin < pointermid) {
-    if (text1.substring(text1.length - pointermid, text1.length - pointerend) ==
-        text2.substring(text2.length - pointermid, text2.length - pointerend)) {
+    if ( isEqual( text1.slice(text1.length - pointermid, text1.length - pointerend),
+         text2.slice(text2.length - pointermid, text2.length - pointerend) ) ) {
       pointermin = pointermid;
       pointerend = pointermin;
     } else {
@@ -345,9 +369,9 @@ function diff_commonSuffix(text1, text2) {
  * Do the two texts share a substring which is at least half the length of the
  * longer text?
  * This speedup can produce non-minimal diffs.
- * @param {string} text1 First string.
- * @param {string} text2 Second string.
- * @return {Array.<string>} Five element Array, containing the prefix of
+ * @param {Array.<string>} text1 First array of code points.
+ * @param {Array.<string>} text2 Second array of code points.
+ * @return {Array.<Array>.<string>} Five element Array, containing the prefix of
  *     text1, the suffix of text1, the prefix of text2, the suffix of
  *     text2 and the common middle.  Or null if there was no match.
  */
@@ -362,32 +386,32 @@ function diff_halfMatch_(text1, text2) {
    * Does a substring of shorttext exist within longtext such that the substring
    * is at least half the length of longtext?
    * Closure, but does not reference any external variables.
-   * @param {string} longtext Longer string.
-   * @param {string} shorttext Shorter string.
+   * @param {Array.<string>} longtext Longer code point array.
+   * @param {Array.<string>} shorttext Shorter code point array.
    * @param {number} i Start index of quarter length substring within longtext.
-   * @return {Array.<string>} Five element Array, containing the prefix of
+   * @return {Array.<Array>.<string>} Five element Array, containing the prefix of
    *     longtext, the suffix of longtext, the prefix of shorttext, the suffix
    *     of shorttext and the common middle.  Or null if there was no match.
    * @private
    */
   function diff_halfMatchI_(longtext, shorttext, i) {
     // Start with a 1/4 length substring at position i as a seed.
-    var seed = longtext.substring(i, i + Math.floor(longtext.length / 4));
+    var seed = longtext.slice(i, i + Math.floor(longtext.length / 4));
     var j = -1;
-    var best_common = '';
+    var best_common = [];
     var best_longtext_a, best_longtext_b, best_shorttext_a, best_shorttext_b;
-    while ((j = shorttext.indexOf(seed, j + 1)) != -1) {
-      var prefixLength = diff_commonPrefix(longtext.substring(i),
-                                           shorttext.substring(j));
-      var suffixLength = diff_commonSuffix(longtext.substring(0, i),
-                                           shorttext.substring(0, j));
+    while ((j = subArrayIndexOf(shorttext, seed, j + 1)) != -1) {
+      var prefixLength = diff_commonPrefix(longtext.slice(i),
+                                           shorttext.slice(j));
+      var suffixLength = diff_commonSuffix(longtext.slice(0, i),
+                                           shorttext.slice(0, j));
       if (best_common.length < suffixLength + prefixLength) {
-        best_common = shorttext.substring(j - suffixLength, j) +
-            shorttext.substring(j, j + prefixLength);
-        best_longtext_a = longtext.substring(0, i - suffixLength);
-        best_longtext_b = longtext.substring(i + prefixLength);
-        best_shorttext_a = shorttext.substring(0, j - suffixLength);
-        best_shorttext_b = shorttext.substring(j + prefixLength);
+        best_common = shorttext.slice(j - suffixLength, j).concat(
+            shorttext.slice(j, j + prefixLength) );
+        best_longtext_a = longtext.slice(0, i - suffixLength);
+        best_longtext_b = longtext.slice(i + prefixLength);
+        best_shorttext_a = shorttext.slice(0, j - suffixLength);
+        best_shorttext_b = shorttext.slice(j + prefixLength);
       }
     }
     if (best_common.length * 2 >= longtext.length) {
@@ -437,26 +461,26 @@ function diff_halfMatch_(text1, text2) {
 /**
  * Reorder and merge like edit sections.  Merge equalities.
  * Any edit section can move as long as it doesn't cross an equality.
- * @param {Array} diffs Array of diff tuples.
+ * @param {Array} diffs Array of diff tuples. Diffs contain arrays of code points.
  */
 function diff_cleanupMerge(diffs) {
-  diffs.push([DIFF_EQUAL, '']);  // Add a dummy entry at the end.
+  diffs.push([DIFF_EQUAL, [] ]);  // Add a dummy entry at the end.
   var pointer = 0;
   var count_delete = 0;
   var count_insert = 0;
-  var text_delete = '';
-  var text_insert = '';
+  var text_delete = [];
+  var text_insert = [];
   var commonlength;
   while (pointer < diffs.length) {
     switch (diffs[pointer][0]) {
       case DIFF_INSERT:
         count_insert++;
-        text_insert += diffs[pointer][1];
+        text_insert = text_insert.concat( diffs[pointer][1] );
         pointer++;
         break;
       case DIFF_DELETE:
         count_delete++;
-        text_delete += diffs[pointer][1];
+        text_delete = text_delete.concat( diffs[pointer][1] );
         pointer++;
         break;
       case DIFF_EQUAL:
@@ -469,24 +493,25 @@ function diff_cleanupMerge(diffs) {
               if ((pointer - count_delete - count_insert) > 0 &&
                   diffs[pointer - count_delete - count_insert - 1][0] ==
                   DIFF_EQUAL) {
-                diffs[pointer - count_delete - count_insert - 1][1] +=
-                    text_insert.substring(0, commonlength);
+                diffs[pointer - count_delete - count_insert - 1][1] =
+                    diffs[pointer - count_delete - count_insert - 1][1].concat(
+                    text_insert.slice(0, commonlength) );
               } else {
                 diffs.splice(0, 0, [DIFF_EQUAL,
-                                    text_insert.substring(0, commonlength)]);
+                                    text_insert.slice(0, commonlength)]);
                 pointer++;
               }
-              text_insert = text_insert.substring(commonlength);
-              text_delete = text_delete.substring(commonlength);
+              text_insert = text_insert.slice(commonlength);
+              text_delete = text_delete.slice(commonlength);
             }
             // Factor out any common suffixies.
             commonlength = diff_commonSuffix(text_insert, text_delete);
             if (commonlength !== 0) {
-              diffs[pointer][1] = text_insert.substring(text_insert.length -
-                  commonlength) + diffs[pointer][1];
-              text_insert = text_insert.substring(0, text_insert.length -
+              diffs[pointer][1] = text_insert.slice(text_insert.length -
+                  commonlength).concat( diffs[pointer][1] );
+              text_insert = text_insert.slice(0, text_insert.length -
                   commonlength);
-              text_delete = text_delete.substring(0, text_delete.length -
+              text_delete = text_delete.slice(0, text_delete.length -
                   commonlength);
             }
           }
@@ -506,19 +531,19 @@ function diff_cleanupMerge(diffs) {
                     (count_delete ? 1 : 0) + (count_insert ? 1 : 0) + 1;
         } else if (pointer !== 0 && diffs[pointer - 1][0] == DIFF_EQUAL) {
           // Merge this equality with the previous one.
-          diffs[pointer - 1][1] += diffs[pointer][1];
+          diffs[pointer - 1][1] = diffs[pointer - 1][1].concat( diffs[pointer][1] );
           diffs.splice(pointer, 1);
         } else {
           pointer++;
         }
         count_insert = 0;
         count_delete = 0;
-        text_delete = '';
-        text_insert = '';
+        text_delete = [];
+        text_insert = [];
         break;
     }
   }
-  if (diffs[diffs.length - 1][1] === '') {
+  if (diffs[diffs.length - 1][1].length === 0) {
     diffs.pop();  // Remove the dummy entry at the end.
   }
 
@@ -532,22 +557,22 @@ function diff_cleanupMerge(diffs) {
     if (diffs[pointer - 1][0] == DIFF_EQUAL &&
         diffs[pointer + 1][0] == DIFF_EQUAL) {
       // This is a single edit surrounded by equalities.
-      if (diffs[pointer][1].substring(diffs[pointer][1].length -
-          diffs[pointer - 1][1].length) == diffs[pointer - 1][1]) {
+      if ( isEqual( diffs[pointer][1].slice(diffs[pointer][1].length -
+          diffs[pointer - 1][1].length), diffs[pointer - 1][1] ) ) {
         // Shift the edit over the previous equality.
-        diffs[pointer][1] = diffs[pointer - 1][1] +
-            diffs[pointer][1].substring(0, diffs[pointer][1].length -
-                                        diffs[pointer - 1][1].length);
-        diffs[pointer + 1][1] = diffs[pointer - 1][1] + diffs[pointer + 1][1];
+        diffs[pointer][1] = diffs[pointer - 1][1].concat(
+            diffs[pointer][1].slice(0, diffs[pointer][1].length -
+                                        diffs[pointer - 1][1].length) );
+        diffs[pointer + 1][1] = diffs[pointer - 1][1].concat( diffs[pointer + 1][1] );
         diffs.splice(pointer - 1, 1);
         changes = true;
-      } else if (diffs[pointer][1].substring(0, diffs[pointer + 1][1].length) ==
-          diffs[pointer + 1][1]) {
+      } else if ( isEqual (diffs[pointer][1].slice(0, diffs[pointer + 1][1].length),
+          diffs[pointer + 1][1] ) ) {
         // Shift the edit over the next equality.
-        diffs[pointer - 1][1] += diffs[pointer + 1][1];
+        diffs[pointer - 1][1] = diffs[pointer - 1][1].concat( diffs[pointer + 1][1] );
         diffs[pointer][1] =
-            diffs[pointer][1].substring(diffs[pointer + 1][1].length) +
-            diffs[pointer + 1][1];
+            diffs[pointer][1].slice(diffs[pointer + 1][1].length).concat(
+            diffs[pointer + 1][1] );
         diffs.splice(pointer + 1, 1);
         changes = true;
       }
@@ -561,7 +586,119 @@ function diff_cleanupMerge(diffs) {
 };
 
 
-var diff = diff_main;
+/**
+ * Converts diffs array contents from arrays of code points to strings.
+ * @param {Array} diffs Array of diff tuples. Diffs should contain arrays of code points.
+ */
+function diff_convertToStrings(diffs) {
+  var diffsLen = diffs.length;
+  for (var i = 0; i < diffsLen; i++) {
+    diffs[i][1] = codePointsToString( diffs[i][1] );
+  }
+}
+
+
+/**
+ * Converts a string to an array of code points.
+ * @param {string} string String to be converted to code points.
+ * @returns {Array.<string>} Array of code points that make up string.
+ */
+function stringToCodePoints(string) {
+  var index = 0;
+  var length = string.length;
+  var output = [];
+  for (; index < length - 1; ++index) {
+    var charCode = string.charCodeAt(index);
+    if (charCode >= 0xD800 && charCode <= 0xDBFF) {
+      charCode = string.charCodeAt(index + 1);
+      if (charCode >= 0xDC00 && charCode <= 0xDFFF) {
+        output.push(string.slice(index, index + 2));
+        ++index;
+        continue;
+      }
+    }
+    output.push(string.charAt(index));
+  }
+  if (index < string.length){
+    output.push(string.charAt(index));
+  }
+  return output;
+}
+
+
+/**
+ * Converts an array of code points to a string.
+ * @param {Array.<string>} codePoints Array of code points.
+ * @returns {string} String built from given code points.
+ */
+function codePointsToString(codePoints) {
+  return codePoints.join('');
+}
+
+
+/**
+ * Finds the index of a sub array inside the main array. Mimics the behavior
+ * of String.indexOf.
+ * @param {Array} mainArray Array to be searched through.
+ * @param {Array} subArray Array to search for.
+ * @param {integer} startIndex Index of where to begin search.
+ * @returns {integer} Index of sub array in main array. -1 for not found.
+ */
+function subArrayIndexOf(mainArray, subArray, startIndex) {
+  var mainArrayIndex = startIndex || 0;
+
+  // handle empty sub array, mimic String.indexOf behavior
+  if (subArray.length === 0) {
+    return Math.min(mainArrayIndex, mainArray.length);
+  }
+
+  // handle non possible cases
+  if ( (mainArrayIndex + subArray.length) > mainArray.length) {
+    return -1;
+  }
+
+  // handle single value sub array
+  if (subArray.length === 1) {
+    return mainArray.indexOf(subArray[0], mainArrayIndex);
+  }
+
+
+  // handle multi value sub array
+  var firstSubVal = subArray[0];
+  var startPoints = [];
+  var startPoint;
+
+  do {
+    startPoint = mainArray.indexOf(firstSubVal, mainArrayIndex);
+    if (startPoint >= 0) {
+      startPoints.push(startPoint);
+    }
+    mainArrayIndex = startPoint + 1;
+  } while (startPoint >= 0)
+
+  // check all start points
+  var startPointsLen = startPoints.length;
+  for (var pointIndex=0; pointIndex < startPointsLen; pointIndex++){
+    mainArrayIndex = startPoints[pointIndex];
+    // check if rest of sub array matches
+    for (var subArrayIndex=1; subArrayIndex < subArray.length; subArrayIndex++) {
+      // if values don't match, break, check next start point
+      if (subArray[subArrayIndex] !== mainArray[mainArrayIndex+subArrayIndex]) {
+        break;
+      }
+      // if reached here and checked all sub array elements, found
+      if (subArrayIndex === subArray.length-1) {
+        return mainArrayIndex;
+      }
+    }
+  }
+
+  // if reached this point, not found
+  return -1;
+}
+
+
+var diff = diff_start;
 diff.INSERT = DIFF_INSERT;
 diff.DELETE = DIFF_DELETE;
 diff.EQUAL = DIFF_EQUAL;
