@@ -6,6 +6,7 @@
   "main": "diff.js",
   "devDependencies": {
     "chai": "3.5.0",
+    "fast-diff": "1.0.1",
     "googlediff": "~0.1.0",
     "mocha": "3.0.2",
     "seedrandom": "~2.4.0"
@@ -19,6 +20,7 @@
   },
   "scripts": {
     "test-sanity": "node tests/sanity.js",
+    "test-performance": "node tests/performance.js",
     "test-astral": "mocha tests/astral.js"
   },
   "license": "Apache 2.0",
